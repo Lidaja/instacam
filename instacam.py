@@ -92,7 +92,7 @@ def blockify(im,blockMap):
 	return dst	
 
 def blur(img):
-	kernel = np.ones((3,3),np.float32)/25
+	kernel = np.ones((9,9),np.float32)/81
 	return cv2.filter2D(img,-1,kernel)
 
 def edge(img):

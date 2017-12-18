@@ -13,8 +13,6 @@ user,pwd = 'ljinstacam', 'instacampassword'
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
 i = 0
 
-
-
 def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
 	global i
@@ -77,7 +75,7 @@ def blockify(im):
 	blockMap = emojiMap
 	Threads = []
 	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
-	numThreads = 2
+	numThreads = 3
 	for n in range(numThreads):
 		toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
 		T = BlockifyThread(toPass,emojiMap)

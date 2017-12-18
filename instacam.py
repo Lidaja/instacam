@@ -72,9 +72,13 @@ class BlockifyThread(Thread):
 		return self.canvas
 
 def colorfy(im):
-	return blockify(im,colorMap)
+	filtered = blockify(im,colorMap)
+	ui = overlay(copy.copy(filtered),colorfyText,0,img.shape[0]-colorfyText.shape[0])
+	return filtered, ui
 def emojify(im):
-	return blockify(im,emojiMap)
+	filtered = blockify(im,emojiMap)
+	ui = overlay(copy.copy(filtered),emojifyText,0,img.shape[0]-emojifyText.shape[0])
+	return filtered, ui
 
 def blockify(im,blockMap):
 	Threads = []
@@ -93,16 +97,22 @@ def blockify(im,blockMap):
 
 def blur(img):
 	kernel = np.ones((9,9),np.float32)/81
-	return cv2.filter2D(img,-1,kernel)
+	filtered = cv2.filter2D(img,-1,kernel)
+	ui = overlay(copy.copy(filtered),blurText,0,img.shape[0]-blurText.shape[0])
+	return filtered,ui
 
 def edge(img):
-	return to3D(cv2.Canny(grayscale(img),100,200))
+	filtered = to3D(cv2.Canny(grayscale(img)[0],100,200))
+	ui = overlay(copy.copy(filtered),edgeText,0,img.shape[0]-edgeText.shape[0])
+	return filtered, ui
 
 def normal(img):
-	return img
+	return img, copy.copy(img)
 
 def grayscale(img):
-	return to3D(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+	filtered = to3D(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+	ui = overlay(copy.copy(filtered),grayscaleText,0,img.shape[0]-grayscaleText.shape[0])
+	return filtered,ui
 
 def to3D(img):
 	return np.repeat(img[:,:,np.newaxis],3,axis=2)
@@ -119,19 +129,18 @@ def overlay(img, over, startX, startY):
 
 def detection(img):
 	imgcopy = copy.deepcopy(img)
-	gray = grayscale(imgcopy)
+	gray, ui = grayscale(imgcopy)
 	faces = faceCascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 	for (x, y, w, h) in faces:
-		#cv2.rectangle(imgcopy, (x, y), (x+w, y+h), (0, 255, 0), 2)
 		imgcopy = overlay(imgcopy, cv2.resize(smile,(w,h)), x, y)
-	return imgcopy
+	ui = overlay(copy.copy(imgcopy),detectionText,0,img.shape[0]-detectionText.shape[0])
+	return imgcopy, ui
 
 def create_map(dirname):
 	dirfiles = []
 	for root,directories,filenames in os.walk('assets/'+dirname):
 		for filename in filenames:
 			dirfiles.append(os.path.join(root,filename))
-
 	blockMap = {}
 	for blockname in dirfiles:
 		block = load_image(blockname)[:,:,:3]
@@ -144,15 +153,24 @@ def create_map(dirname):
 if __name__ == '__main__':
 	InstagramAPI = InstagramAPI(user,pwd)
 	InstagramAPI.login()
-	filters = [normal,blur,grayscale, detection,edge,colorfy,emojify]
+	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
 	ret,img = cap.read()
 	if not ret:
 		img = load_image('assets/image.jpg')
+
+	#Load UI elements
 	right = cv2.resize(load_image('assets/right.png'),(0,0),fx=0.7,fy=0.8)
 	left = cv2.resize(load_image('assets/left.png'),(0,0),fx=0.7,fy=0.8)
 	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
 	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
+
+	blurText = load_image('assets/UI/blur.png')
+	grayscaleText = load_image('assets/UI/grayscale.png')
+	edgeText = load_image('assets/UI/edge.png')
+	detectionText = load_image('assets/UI/detection.png')
+	colorfyText = load_image('assets/UI/colorfy.png')
+	emojifyText = load_image('assets/UI/emojify.png')
 
 	smile = load_image('assets/smile.png')
 	
@@ -178,12 +196,15 @@ if __name__ == '__main__':
 		tick = datetime.datetime.now()	
 		if ret:
 			ret,img = cap.read()
-		dst = filters[i % len(filters)](img)
-		toShow = overlay(copy.deepcopy(dst),right,arrowOffsetXR,arrowOffsetY)
+		else:
+			img = load_image('assets/image.jpg')
+		dst,ui = filters[i % len(filters)](copy.deepcopy(img))
+		toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
 		toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
 		toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
 		if uploadSuccess:
 			toShow = overlay(toShow,success,successOffsetX,successOffsetY)
+		cv2.imshow('dst',dst)
 		cv2.imshow('image',toShow)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break

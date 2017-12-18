@@ -6,12 +6,14 @@ import time
 import datetime
 import os
 import copy
-
+from threading import Thread
 
 user,pwd = 'ljinstacam', 'instacampassword'
 
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
 i = 0
+
+
 
 def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
@@ -39,6 +41,53 @@ def get_mouse(event,x,y,flags,param):
 
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
+
+class BlockifyThread(Thread):
+	def __init__(self, img,blockMap):
+		Thread.__init__(self)
+		self.img = img
+		self.canvas = np.zeros(img.shape,dtype=np.uint8)
+		self.blockMap = blockMap
+	def run(self):
+		blockSize = 15
+		numBlocksWidth = self.img.shape[1]//blockSize
+		numBlocksHeight = self.img.shape[0]//blockSize
+		blockKeys = self.blockMap.keys()
+		mapMat = np.array(list(blockKeys))	
+		for i in range(numBlocksHeight):
+			for j in range(numBlocksWidth):
+				block = self.img[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:]
+				rAvg = np.mean(block[:,:,0])
+				bAvg = np.mean(block[:,:,1])
+				gAvg = np.mean(block[:,:,2])
+				means = np.array([[rAvg,bAvg,gAvg]])
+				meanMat = np.repeat(means,len(blockKeys),0)
+				diffMat = np.sum(np.square(np.subtract(meanMat,mapMat)),1)
+				minIndex = np.argmin(diffMat)
+				key = mapMat[minIndex,:]
+				newBlock = self.blockMap[tuple(key)]
+				toInsert = cv2.resize(newBlock,(block.shape[0],block.shape[1]))
+				self.canvas[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:] = toInsert
+
+	def join(self):
+		Thread.join(self)
+		return self.canvas
+
+def blockify(im):
+	blockMap = emojiMap
+	Threads = []
+	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
+	numThreads = 2
+	for n in range(numThreads):
+		toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
+		T = BlockifyThread(toPass,emojiMap)
+		Threads.append(T)
+	for T in Threads:
+		T.start()
+	for T in Threads:
+		new = T.join()
+		dst = np.concatenate((dst,new),axis=0)
+	return dst	
 
 def blur(img):
 	kernel = np.ones((3,3),np.float32)/25
@@ -89,35 +138,9 @@ def create_map(dirname):
 		blockMap[(rAvg,bAvg,gAvg)] = block
 	return blockMap
 
-def blockify(im):
-	tick = datetime.datetime.now()
-	blockMap = emojiMap
-	blockSize = 15
-	numBlocksWidth = im.shape[1]//blockSize
-	numBlocksHeight = im.shape[0]//blockSize
-	blockKeys = blockMap.keys()
-	canvas = np.zeros(im.shape,dtype=np.uint8)
-	mapMat = np.array(list(blockKeys))
-	
-	for i in range(numBlocksHeight):
-		for j in range(numBlocksWidth):
-			block = im[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:]
-			rAvg = np.mean(block[:,:,0])
-			bAvg = np.mean(block[:,:,1])
-			gAvg = np.mean(block[:,:,2])
-			means = np.array([[rAvg,bAvg,gAvg]])
-			meanMat = np.repeat(means,len(blockKeys),0)
-			diffMat = np.sum(np.square(np.subtract(meanMat,mapMat)),1)
-			minIndex = np.argmin(diffMat)
-			key = mapMat[minIndex,:]
-			newBlock = blockMap[tuple(key)]
-			toInsert = cv2.resize(newBlock,(block.shape[0],block.shape[1]))
-			canvas[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:] = toInsert
-	return canvas
-
 if __name__ == '__main__':
 	InstagramAPI = InstagramAPI(user,pwd)
-	InstagramAPI.login() # login
+	InstagramAPI.login()
 	filters = [normal,blur,grayscale, detection,edge,blockify]
 	cap = cv2.VideoCapture(0)
 	ret,img = cap.read()
@@ -128,8 +151,6 @@ if __name__ == '__main__':
 	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
 	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
 	
-	
-
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
 
@@ -165,6 +186,4 @@ if __name__ == '__main__':
 		tock = datetime.datetime.now()
 		diff = tock-tick
 		print(diff.total_seconds())
-
-
 	cv2.destroyAllWindows()

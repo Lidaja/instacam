@@ -71,14 +71,18 @@ class BlockifyThread(Thread):
 		Thread.join(self)
 		return self.canvas
 
-def blockify(im):
-	blockMap = emojiMap
+def colorfy(im):
+	return blockify(im,colorMap)
+def emojify(im):
+	return blockify(im,emojiMap)
+
+def blockify(im,blockMap):
 	Threads = []
 	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
 	numThreads = 2
 	for n in range(numThreads):
 		toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
-		T = BlockifyThread(toPass,emojiMap)
+		T = BlockifyThread(toPass,blockMap)
 		Threads.append(T)
 	for T in Threads:
 		T.start()
@@ -118,7 +122,8 @@ def detection(img):
 	gray = grayscale(imgcopy)
 	faces = faceCascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 	for (x, y, w, h) in faces:
-		cv2.rectangle(imgcopy, (x, y), (x+w, y+h), (0, 255, 0), 2)
+		#cv2.rectangle(imgcopy, (x, y), (x+w, y+h), (0, 255, 0), 2)
+		imgcopy = overlay(imgcopy, cv2.resize(smile,(w,h)), x, y)
 	return imgcopy
 
 def create_map(dirname):
@@ -139,7 +144,7 @@ def create_map(dirname):
 if __name__ == '__main__':
 	InstagramAPI = InstagramAPI(user,pwd)
 	InstagramAPI.login()
-	filters = [normal,blur,grayscale, detection,edge,blockify]
+	filters = [normal,blur,grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
 	ret,img = cap.read()
 	if not ret:
@@ -148,6 +153,8 @@ if __name__ == '__main__':
 	left = cv2.resize(load_image('assets/left.png'),(0,0),fx=0.7,fy=0.8)
 	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
 	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
+
+	smile = load_image('assets/smile.png')
 	
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')

@@ -91,15 +91,19 @@ def create_map(dirname):
 
 def blockify(im):
 	blockMap = emojiMap
-	blockSize = 40
-	numBlocksWidth = im.shape[0]//blockSize
-	numBlocksHeight = im.shape[1]//blockSize
+	blockSize = 15
+	numBlocksWidth = im.shape[1]//blockSize
+	numBlocksHeight = im.shape[0]//blockSize
 	blockKeys = blockMap.keys()
 	canvas = np.zeros(im.shape,dtype=np.uint8)
 	mapMat = np.array(list(blockKeys))
 	for i in range(numBlocksHeight):
 		for j in range(numBlocksWidth):
 			block = im[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:]
+			print(im.shape)
+			print("i",i*blockSize,(i+1)*blockSize)
+			print("j",j*blockSize,(j+1)*blockSize)
+			#print(i,j,block.shape)
 			rAvg = np.mean(block[:,:,0])
 			bAvg = np.mean(block[:,:,1])
 			gAvg = np.mean(block[:,:,2])
@@ -108,29 +112,32 @@ def blockify(im):
 			diffMat = np.sum(np.square(np.subtract(meanMat,mapMat)),1)
 			minIndex = np.argmin(diffMat)
 			key = mapMat[minIndex,:]
-			toInsert = cv2.resize(blockMap[tuple(key)],(block.shape[0],block.shape[1]))
+			newBlock = blockMap[tuple(key)]
+			toInsert = cv2.resize(newBlock,(block.shape[0],block.shape[1]))
 			canvas[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:] = toInsert
 	return canvas
 
 if __name__ == '__main__':
-	#InstagramAPI = InstagramAPI(user,pwd)
-	#InstagramAPI.login() # login
+	InstagramAPI = InstagramAPI(user,pwd)
+	InstagramAPI.login() # login
 	filters = [normal,blur,grayscale, detection,edge,blockify]
 
 	cap = cv2.VideoCapture(0)
 	ret,img = cap.read()
 	if not ret:
 		img = load_image('assets/image.jpg')
-	right = load_image('assets/right.png')
-	left = load_image('assets/left.png')
-	upload = load_image('assets/upload.png')
-	success = load_image('assets/success.png')
+	right = cv2.resize(load_image('assets/right.png'),(0,0),fx=0.7,fy=0.8)
+	left = cv2.resize(load_image('assets/left.png'),(0,0),fx=0.7,fy=0.8)
+	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
+	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
+	
+	
 
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
 
-	arrowOffsetXR = img.shape[0]//2+100
-	arrowOffsetXL = img.shape[0]//2-100
+	arrowOffsetXR = img.shape[1]//2+100
+	arrowOffsetXL = img.shape[1]//2-100
 	arrowOffsetY = 50
 
 	uploadOffsetY = img.shape[0]-upload.shape[0]-50
@@ -139,7 +146,7 @@ if __name__ == '__main__':
 	successOffsetY = img.shape[0]//2-success.shape[0]//2
 	successOffsetX = img.shape[1]//2-success.shape[1]//2
 
-	cv2.namedWindow('image')
+	cv2.namedWindow('image',cv2.WND_PROP_FULLSCREEN)
 	cv2.setWindowProperty('image', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 	cv2.setMouseCallback('image',get_mouse)
 	i = 0

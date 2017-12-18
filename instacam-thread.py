@@ -6,12 +6,14 @@ import time
 import datetime
 import os
 import copy
-
+from threading import Thread
 
 user,pwd = 'ljinstacam', 'instacampassword'
 
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
 i = 0
+
+
 
 def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
@@ -21,6 +23,9 @@ def get_mouse(event,x,y,flags,param):
 		mouseX,mouseY = x,y
 		if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
 			if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
+				for T in Threads:
+					T.right()
+				
 				i+=1
 			if mouseX >= arrowOffsetXL-left.shape[1] and mouseX <= arrowOffsetXL:
 				i-=1
@@ -39,6 +44,25 @@ def get_mouse(event,x,y,flags,param):
 
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
+
+class FilterWorker(Thread):
+	def __init__(self, filters,i,img):
+		Thread.__init__(self)
+		self.filters = filters
+		self.i = i
+		self.img = img
+	def right(self):
+		self.i+=1
+	def left(self):
+		self.i-=1
+	def run(self):
+		print('start')
+		self.dst = self.filters[self.i % len(self.filters)](self.img)
+		print('done')
+	def join(self):
+		Thread.join(self)
+		return self.dst
+		
 
 def blur(img):
 	kernel = np.ones((3,3),np.float32)/25
@@ -128,8 +152,6 @@ if __name__ == '__main__':
 	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
 	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
 	
-	
-
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
 
@@ -148,11 +170,23 @@ if __name__ == '__main__':
 	cv2.setMouseCallback('image',get_mouse)
 	i = 0
 	uploadSuccess = False
+	numThreads = 1
 	while(True):
 		tick = datetime.datetime.now()	
 		if ret:
 			ret,img = cap.read()
-		dst = filters[i % len(filters)](img)
+		Threads = []
+		dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
+		for n in range(numThreads):
+			toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
+			T = FilterWorker(filters,i,toPass)
+			Threads.append(T)
+		for T in Threads:
+			T.start()
+		for T in Threads:
+			new = T.join()
+			dst = np.concatenate((dst,new),axis=0)
+
 		toShow = overlay(copy.deepcopy(dst),right,arrowOffsetXR,arrowOffsetY)
 		toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
 		toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)

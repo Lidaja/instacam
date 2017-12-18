@@ -75,7 +75,7 @@ def blockify(im):
 	blockMap = emojiMap
 	Threads = []
 	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
-	numThreads = 3
+	numThreads = 2
 	for n in range(numThreads):
 		toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
 		T = BlockifyThread(toPass,emojiMap)

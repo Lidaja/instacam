@@ -117,8 +117,10 @@ if __name__ == '__main__':
 	#InstagramAPI.login() # login
 	filters = [normal,blur,grayscale, detection,edge,blockify]
 
-	img = load_image('assets/image.jpg')
-
+	cap = cv2.VideoCapture(0)
+	ret,img = cap.read()
+	if not ret:
+		img = load_image('assets/image.jpg')
 	right = load_image('assets/right.png')
 	left = load_image('assets/left.png')
 	upload = load_image('assets/upload.png')
@@ -142,13 +144,13 @@ if __name__ == '__main__':
 	cv2.setMouseCallback('image',get_mouse)
 	i = 0
 	uploadSuccess = False
-
 	while(True):
+		if ret:
+			ret,img = cap.read()
 		dst = filters[i % len(filters)](img)
 		toShow = overlay(copy.deepcopy(dst),right,arrowOffsetXR,arrowOffsetY)
 		toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
 		toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
-		print(toShow.dtype)
 		if uploadSuccess:
 			toShow = overlay(toShow,success,successOffsetX,successOffsetY)
 		cv2.imshow('image',toShow)

@@ -17,25 +17,38 @@ def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
 	global i
 	global uploadSuccess
+	global captured
 	if event == cv2.EVENT_LBUTTONDOWN:
 		mouseX,mouseY = x,y
-		if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
-			if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
-				i+=1
-			if mouseX >= arrowOffsetXL-left.shape[1] and mouseX <= arrowOffsetXL:
-				i-=1
-		if uploadSuccess == False and mouseY >= uploadOffsetY and mouseY <= uploadOffsetY+upload.shape[0]:
-			if mouseX >= uploadOffsetX and mouseX <= uploadOffsetX+upload.shape[1]:
-				timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
-				photo_path =os.getcwd()+'/'+timestamp+'.jpg'
-				print(cv2.imwrite(photo_path,dst))
-				caption = "Sample photo"
-				print("START UPLOAD")
-				InstagramAPI.uploadPhoto(photo_path, caption = caption)
-				print("SUCCESS")
-				uploadSuccess = True
-		elif uploadSuccess == True:
-			uploadSuccess = False
+		if not captured:
+			if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
+				if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
+					i+=1
+				elif mouseX >= arrowOffsetXL-left.shape[1] and mouseX <= arrowOffsetXL:
+					i-=1
+			elif mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0]:
+				if mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
+					captured = True
+		elif captured:
+			if mouseY >= xOffsetY and mouseY <= xOffsetY+exit.shape[0]:
+				if mouseX >= xOffsetX and mouseX <= xOffsetX+exit.shape[1]:
+					captured = False
+
+		
+			if not uploadSuccess and mouseY >= uploadOffsetY and mouseY <= uploadOffsetY+upload.shape[0]:
+				if mouseX >= uploadOffsetX and mouseX <= uploadOffsetX+upload.shape[1]:
+					timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
+					photo_path =os.getcwd()+'/'+timestamp+'.jpg'
+					print(cv2.imwrite(photo_path,dst))
+					caption = "Sample photo"
+					print("START UPLOAD")
+					InstagramAPI.uploadPhoto(photo_path, caption = caption)
+					print("SUCCESS")
+					uploadSuccess = True
+					os.remove(photo_path)
+			elif uploadSuccess:
+				uploadSuccess = False
+				captured = False
 
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
@@ -160,29 +173,39 @@ if __name__ == '__main__':
 		img = load_image('assets/image.jpg')
 
 	#Load UI elements
-	right = cv2.resize(load_image('assets/right.png'),(0,0),fx=0.7,fy=0.8)
-	left = cv2.resize(load_image('assets/left.png'),(0,0),fx=0.7,fy=0.8)
-	upload = cv2.resize(load_image('assets/upload.png'),(0,0),fx=0.7,fy=0.8)
-	success = cv2.resize(load_image('assets/success.png'),(0,0),fx=0.7,fy=0.8)
+	right = cv2.resize(load_image('assets/ui/right.png'),(0,0),fx=0.7,fy=0.8)
+	left = cv2.resize(load_image('assets/ui/left.png'),(0,0),fx=0.7,fy=0.8)
+	upload = cv2.resize(load_image('assets/ui/upload.png'),(0,0),fx=0.7,fy=0.8)
+	success = cv2.resize(load_image('assets/ui/success.png'),(0,0),fx=0.7,fy=0.8)
+	capture = load_image('assets/ui/capture.png')
+	exit = load_image('assets/ui/x.png')
 
-	blurText = load_image('assets/UI/blur.png')
-	grayscaleText = load_image('assets/UI/grayscale.png')
-	edgeText = load_image('assets/UI/edge.png')
-	detectionText = load_image('assets/UI/detection.png')
-	colorfyText = load_image('assets/UI/colorfy.png')
-	emojifyText = load_image('assets/UI/emojify.png')
+
+	blurText = load_image('assets/ui/blur.png')
+	grayscaleText = load_image('assets/ui/grayscale.png')
+	edgeText = load_image('assets/ui/edge.png')
+	detectionText = load_image('assets/ui/detection.png')
+	colorfyText = load_image('assets/ui/colorfy.png')
+	emojifyText = load_image('assets/ui/emojify.png')
 
 	smile = load_image('assets/smile.png')
 	
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
 
+
 	arrowOffsetXR = img.shape[1]//2+100
 	arrowOffsetXL = img.shape[1]//2-100
 	arrowOffsetY = 50
 
+	xOffsetX = 15
+	xOffsetY = 15
+
 	uploadOffsetY = img.shape[0]-upload.shape[0]-50
 	uploadOffsetX = img.shape[1]//2-upload.shape[1]//2
+
+	captureOffsetY = img.shape[0]-capture.shape[0]-50
+	captureOffsetX = img.shape[1]//2-capture.shape[1]//2
 
 	successOffsetY = img.shape[0]//2-success.shape[0]//2
 	successOffsetX = img.shape[1]//2-success.shape[1]//2
@@ -192,24 +215,29 @@ if __name__ == '__main__':
 	cv2.setMouseCallback('image',get_mouse)
 	i = 0
 	uploadSuccess = False
+	captured = False
 	while(True):
 		tick = datetime.datetime.now()	
 		if ret:
 			ret,img = cap.read()
 		else:
 			img = load_image('assets/image.jpg')
-		dst,ui = filters[i % len(filters)](copy.deepcopy(img))
-		toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
-		toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
-		toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
-		if uploadSuccess:
-			toShow = overlay(toShow,success,successOffsetX,successOffsetY)
-		cv2.imshow('dst',dst)
+		if not captured:
+			dst,ui = filters[i % len(filters)](copy.deepcopy(img))
+			toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
+			toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
+			toShow = overlay(toShow,capture,captureOffsetX,captureOffsetY)
+		else:
+			toShow = overlay(copy.copy(dst),exit,xOffsetX,xOffsetY)
+			toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
+			if uploadSuccess:
+				toShow = overlay(toShow,success,successOffsetX,successOffsetY)
+
+			
 		cv2.imshow('image',toShow)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
-
 		tock = datetime.datetime.now()
 		diff = tock-tick
-		print(diff.total_seconds())
+		#print(diff.total_seconds())
 	cv2.destroyAllWindows()

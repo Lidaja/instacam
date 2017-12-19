@@ -60,7 +60,7 @@ class BlockifyThread(Thread):
 		self.canvas = np.zeros(img.shape,dtype=np.uint8)
 		self.blockMap = blockMap
 	def run(self):
-		blockSize = 15
+		blockSize = 16
 		numBlocksWidth = self.img.shape[1]//blockSize
 		numBlocksHeight = self.img.shape[0]//blockSize
 		blockKeys = self.blockMap.keys()
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 	left = cv2.resize(load_image('assets/ui/left.png'),(0,0),fx=0.7,fy=0.8)
 	upload = cv2.resize(load_image('assets/ui/upload.png'),(0,0),fx=0.7,fy=0.8)
 	success = cv2.resize(load_image('assets/ui/success.png'),(0,0),fx=0.7,fy=0.8)
-	capture = load_image('assets/ui/capture.png')
+	capture = cv2.resize(load_image('assets/ui/capture.png'),(0,0),fx=0.5,fy=0.5)
 	exit = load_image('assets/ui/x.png')
 
 
@@ -204,7 +204,7 @@ if __name__ == '__main__':
 	uploadOffsetY = img.shape[0]-upload.shape[0]-50
 	uploadOffsetX = img.shape[1]//2-upload.shape[1]//2
 
-	captureOffsetY = img.shape[0]-capture.shape[0]-50
+	captureOffsetY = img.shape[0]-capture.shape[0]-25
 	captureOffsetX = img.shape[1]//2-capture.shape[1]//2
 
 	successOffsetY = img.shape[0]//2-success.shape[0]//2

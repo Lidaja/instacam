@@ -7,7 +7,8 @@ import datetime
 import os
 import copy
 from threading import Thread
-
+import math
+import random
 user,pwd = 'ljinstacam', 'instacampassword'
 
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
@@ -18,14 +19,18 @@ def get_mouse(event,x,y,flags,param):
 	global i
 	global uploadSuccess
 	global captured
+	global rSwipe
+	global lSwipe
 	if event == cv2.EVENT_LBUTTONDOWN:
 		mouseX,mouseY = x,y
 		if not captured:
 			if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
 				if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
-					i+=1
+					#i+=1
+					rSwipe = True
 				elif mouseX >= arrowOffsetXL and mouseX <= arrowOffsetXL+left.shape[1]:
-					i-=1
+					lSwipe = True
+					#i-=1
 			elif mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0]:
 				if mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
 					captured = True
@@ -78,28 +83,36 @@ class BlockifyThread(Thread):
 				key = mapMat[minIndex,:]
 				newBlock = self.blockMap[tuple(key)]
 				toInsert = cv2.resize(newBlock,(block.shape[0],block.shape[1]))
-				self.canvas[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:] = toInsert
+				cols = toInsert.shape[0]
+				rows = toInsert.shape[1]
+				angle = random.randint(0,359)
+				R = cv2.getRotationMatrix2D((cols/2,rows/2),angle,1)
+				self.canvas[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:] = cv2.warpAffine(toInsert,R,(cols,rows))
 
 	def join(self):
 		Thread.join(self)
 		return self.canvas
 
-def colorfy(im):
-	filtered = blockify(im,colorMap)
-	ui = overlay(copy.copy(filtered),colorfyText,textOffsetX,img.shape[0]-colorfyText.shape[0])
-	return filtered, ui
+def colorfy(img, getUI = True):
+	filtered = blockify(img,colorMap)
+	if getUI:
+		ui = overlay(copy.copy(filtered),colorfyText,textOffsetX,img.shape[0]-colorfyText.shape[0])
+		return filtered, ui
+	return filtered
 
-def emojify(im):
-	filtered = blockify(im,emojiMap)
-	ui = overlay(copy.copy(filtered),emojifyText,textOffsetX,img.shape[0]-emojifyText.shape[0])
-	return filtered, ui
+def emojify(img, getUI = True):
+	filtered = blockify(img,emojiMap)
+	if getUI:
+		ui = overlay(copy.copy(filtered),emojifyText,textOffsetX,img.shape[0]-emojifyText.shape[0])
+		return filtered, ui
+	return filtered
 
-def blockify(im,blockMap):
+def blockify(img,blockMap):
 	Threads = []
 	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
 	numThreads = 2
 	for n in range(numThreads):
-		toPass = img[n*(img.shape[1]//numThreads):(n+1)*(img.shape[1]//numThreads),:,:]
+		toPass = img[n*(img.shape[0]//numThreads):(n+1)*(img.shape[0]//numThreads),:,:]
 		T = BlockifyThread(toPass,blockMap)
 		Threads.append(T)
 	for T in Threads:
@@ -109,46 +122,59 @@ def blockify(im,blockMap):
 		dst = np.concatenate((dst,new),axis=0)
 	return dst	
 
-def blur(img):
+def blur(img, getUI = True):
 	kernel = np.ones((9,9),np.float32)/81
 	filtered = cv2.filter2D(img,-1,kernel)
-	ui = overlay(copy.copy(filtered),blurText,textOffsetX,img.shape[0]-blurText.shape[0])
-	return filtered,ui
+	if getUI:
+		ui = overlay(copy.copy(filtered),blurText,textOffsetX,img.shape[0]-blurText.shape[0])
+		return filtered,ui
+	return filtered
 
-def edge(img):
+def edge(img, getUI = True):
 	filtered = to3D(cv2.Canny(grayscale(img)[0],100,200))
-	ui = overlay(copy.copy(filtered),edgeText,textOffsetX,img.shape[0]-edgeText.shape[0])
-	return filtered, ui
+	if getUI:
+		ui = overlay(copy.copy(filtered),edgeText,textOffsetX,img.shape[0]-edgeText.shape[0])
+		return filtered, ui
+	return filtered
 
-def normal(img):
-	return img, copy.copy(img)
+def normal(img, getUI = True):
+	if getUI:
+		return img, copy.copy(img)
+	return img
 
-def grayscale(img):
+def grayscale(img, getUI = True):
 	filtered = to3D(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-	ui = overlay(copy.copy(filtered),grayscaleText,textOffsetX,img.shape[0]-grayscaleText.shape[0])
-	return filtered,ui
+	if getUI:
+		ui = overlay(copy.copy(filtered),grayscaleText,textOffsetX,img.shape[0]-grayscaleText.shape[0])
+		return filtered,ui
+	return filtered
 
 def to3D(img):
 	return np.repeat(img[:,:,np.newaxis],3,axis=2)
 
 def overlay(img, over, startX, startY):
-	overAlpha = over[:,:,3]/255
-	imageAlpha = 1 - overAlpha
-	overlayMult = np.multiply(over[:,:,0:3],to3D(overAlpha))
-	imageSplice = img[startY:startY+over.shape[0],startX:startX+over.shape[1],0:3]
-	imageMult = np.multiply(imageSplice,to3D(imageAlpha))
-	toOverlay = np.add(overlayMult,imageMult)
-	img[startY:startY+over.shape[0],startX:startX+over.shape[1],0:3] = toOverlay
-	return img
+	try:
+		overAlpha = over[:,:,3]/255
+		imageAlpha = 1 - overAlpha
+		overlayMult = np.multiply(over[:,:,0:3],to3D(overAlpha))
+		imageSplice = img[startY:startY+over.shape[0],startX:startX+over.shape[1],0:3]
+		imageMult = np.multiply(imageSplice,to3D(imageAlpha))
+		toOverlay = np.add(overlayMult,imageMult)
+		img[startY:startY+over.shape[0],startX:startX+over.shape[1],0:3] = toOverlay
+		return img
+	except:
+		return img
 
-def detection(img):
+def detection(img, getUI = True):
 	imgcopy = copy.deepcopy(img)
 	gray, ui = grayscale(imgcopy)
 	faces = faceCascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 	for (x, y, w, h) in faces:
 		imgcopy = overlay(imgcopy, cv2.resize(smile,(w,h)), x, y)
-	ui = overlay(copy.copy(imgcopy),detectionText,textOffsetX,img.shape[0]-detectionText.shape[0])
-	return imgcopy, ui
+	if getUI:
+		ui = overlay(copy.copy(imgcopy),detectionText,textOffsetX,img.shape[0]-detectionText.shape[0])
+		return imgcopy, ui
+	return imgcopy
 
 def create_map(dirname):
 	dirfiles = []
@@ -169,9 +195,9 @@ if __name__ == '__main__':
 	InstagramAPI.login()
 	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
-	ret,img = cap.read()
+	ret,frame = cap.read()
 	if not ret:
-		img = load_image('assets/image.jpg')
+		frame = load_image('assets/image.jpg')
 
 	#Load UI elements
 	right = cv2.resize(load_image('assets/ui/right.png'),(0,0),fx=0.7,fy=0.8)
@@ -196,21 +222,21 @@ if __name__ == '__main__':
 	colorMap = create_map('Colors')
 
 
-	arrowOffsetXR = img.shape[1]-right.shape[1]-100#//2+200
+	arrowOffsetXR = frame.shape[1]-right.shape[1]-100#//2+200
 	arrowOffsetXL = 100
 	arrowOffsetY = 50
 
 	xOffsetX = 15
 	xOffsetY = 15
 
-	uploadOffsetY = img.shape[0]-upload.shape[0]-50
-	uploadOffsetX = img.shape[1]//2-upload.shape[1]//2
+	uploadOffsetY = frame.shape[0]-upload.shape[0]-50
+	uploadOffsetX = frame.shape[1]//2-upload.shape[1]//2
 
-	captureOffsetY = img.shape[0]-capture.shape[0]-25
-	captureOffsetX = img.shape[1]//2-capture.shape[1]//2
+	captureOffsetY = frame.shape[0]-capture.shape[0]-25
+	captureOffsetX = frame.shape[1]//2-capture.shape[1]//2
 
-	successOffsetY = img.shape[0]//2-success.shape[0]//2
-	successOffsetX = img.shape[1]//2-success.shape[1]//2
+	successOffsetY = frame.shape[0]//2-success.shape[0]//2
+	successOffsetX = frame.shape[1]//2-success.shape[1]//2
 
 	cv2.namedWindow('image',cv2.WND_PROP_FULLSCREEN)
 	cv2.setWindowProperty('image', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -218,17 +244,49 @@ if __name__ == '__main__':
 	i = 0
 	uploadSuccess = False
 	captured = False
+	rSwipe = False
+	lSwipe = False
+	decrement = 0.08
+	counter = 1-decrement
 	while(True):
 		tick = datetime.datetime.now()	
 		if ret:
-			ret,img = cap.read()
+			ret,frame = cap.read()
 		else:
-			img = load_image('assets/image.jpg')
+			frame = load_image('assets/image.jpg')
 		if not captured:
-			dst,ui = filters[i % len(filters)](copy.deepcopy(img))
-			toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
-			toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
-			toShow = overlay(toShow,capture,captureOffsetX,captureOffsetY)
+			if rSwipe:
+				split = math.floor(frame.shape[1]*counter)
+				imA = frame[:,:split,:]
+				imB = frame[:,split:,:]
+				dstA = filters[i % len(filters)](copy.deepcopy(imA), False)
+				dstB = filters[(i+1) % len(filters)](copy.deepcopy(imB), False)
+				dst = np.concatenate((dstA,dstB),axis=1)
+				toShow = dst
+				counter -= decrement
+				if counter <= decrement:
+					counter = 1-decrement
+					rSwipe = False
+					i+=1
+			elif lSwipe:
+				split = math.floor(frame.shape[1]*(1-counter))
+				imA = frame[:,:split,:]
+				imB = frame[:,split:,:]
+				dstA = filters[(i-1) % len(filters)](copy.deepcopy(imA), False)
+				dstB = filters[i % len(filters)](copy.deepcopy(imB), False)
+				dst = np.concatenate((dstA,dstB),axis=1)
+				toShow = dst
+				counter -= decrement
+				if counter <= decrement:
+					counter = 1-decrement
+					lSwipe = False
+					i-=1
+
+			else:
+				dst,ui = filters[i % len(filters)](copy.deepcopy(frame))
+				toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
+				toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
+				toShow = overlay(toShow,capture,captureOffsetX,captureOffsetY)
 		else:
 			toShow = overlay(copy.copy(dst),exit,xOffsetX,xOffsetY)
 			toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)

@@ -24,7 +24,7 @@ def get_mouse(event,x,y,flags,param):
 			if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
 				if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
 					i+=1
-				elif mouseX >= arrowOffsetXL-left.shape[1] and mouseX <= arrowOffsetXL:
+				elif mouseX >= arrowOffsetXL and mouseX <= arrowOffsetXL+left.shape[1]:
 					i-=1
 			elif mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0]:
 				if mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
@@ -86,11 +86,12 @@ class BlockifyThread(Thread):
 
 def colorfy(im):
 	filtered = blockify(im,colorMap)
-	ui = overlay(copy.copy(filtered),colorfyText,0,img.shape[0]-colorfyText.shape[0])
+	ui = overlay(copy.copy(filtered),colorfyText,textOffsetX,img.shape[0]-colorfyText.shape[0])
 	return filtered, ui
+
 def emojify(im):
 	filtered = blockify(im,emojiMap)
-	ui = overlay(copy.copy(filtered),emojifyText,0,img.shape[0]-emojifyText.shape[0])
+	ui = overlay(copy.copy(filtered),emojifyText,textOffsetX,img.shape[0]-emojifyText.shape[0])
 	return filtered, ui
 
 def blockify(im,blockMap):
@@ -111,12 +112,12 @@ def blockify(im,blockMap):
 def blur(img):
 	kernel = np.ones((9,9),np.float32)/81
 	filtered = cv2.filter2D(img,-1,kernel)
-	ui = overlay(copy.copy(filtered),blurText,0,img.shape[0]-blurText.shape[0])
+	ui = overlay(copy.copy(filtered),blurText,textOffsetX,img.shape[0]-blurText.shape[0])
 	return filtered,ui
 
 def edge(img):
 	filtered = to3D(cv2.Canny(grayscale(img)[0],100,200))
-	ui = overlay(copy.copy(filtered),edgeText,0,img.shape[0]-edgeText.shape[0])
+	ui = overlay(copy.copy(filtered),edgeText,textOffsetX,img.shape[0]-edgeText.shape[0])
 	return filtered, ui
 
 def normal(img):
@@ -124,7 +125,7 @@ def normal(img):
 
 def grayscale(img):
 	filtered = to3D(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-	ui = overlay(copy.copy(filtered),grayscaleText,0,img.shape[0]-grayscaleText.shape[0])
+	ui = overlay(copy.copy(filtered),grayscaleText,textOffsetX,img.shape[0]-grayscaleText.shape[0])
 	return filtered,ui
 
 def to3D(img):
@@ -146,7 +147,7 @@ def detection(img):
 	faces = faceCascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 	for (x, y, w, h) in faces:
 		imgcopy = overlay(imgcopy, cv2.resize(smile,(w,h)), x, y)
-	ui = overlay(copy.copy(imgcopy),detectionText,0,img.shape[0]-detectionText.shape[0])
+	ui = overlay(copy.copy(imgcopy),detectionText,textOffsetX,img.shape[0]-detectionText.shape[0])
 	return imgcopy, ui
 
 def create_map(dirname):
@@ -179,8 +180,9 @@ if __name__ == '__main__':
 	success = cv2.resize(load_image('assets/ui/success.png'),(0,0),fx=0.7,fy=0.8)
 	capture = cv2.resize(load_image('assets/ui/capture.png'),(0,0),fx=0.5,fy=0.5)
 	exit = load_image('assets/ui/x.png')
-
-
+	
+	textOffsetX = 10
+	
 	blurText = load_image('assets/ui/blur.png')
 	grayscaleText = load_image('assets/ui/grayscale.png')
 	edgeText = load_image('assets/ui/edge.png')
@@ -194,8 +196,8 @@ if __name__ == '__main__':
 	colorMap = create_map('Colors')
 
 
-	arrowOffsetXR = img.shape[1]//2+100
-	arrowOffsetXL = img.shape[1]//2-100
+	arrowOffsetXR = img.shape[1]-right.shape[1]-100#//2+200
+	arrowOffsetXL = 100
 	arrowOffsetY = 50
 
 	xOffsetX = 15
@@ -225,15 +227,13 @@ if __name__ == '__main__':
 		if not captured:
 			dst,ui = filters[i % len(filters)](copy.deepcopy(img))
 			toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
-			toShow = overlay(toShow,left,arrowOffsetXL-left.shape[0],arrowOffsetY)
+			toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
 			toShow = overlay(toShow,capture,captureOffsetX,captureOffsetY)
 		else:
 			toShow = overlay(copy.copy(dst),exit,xOffsetX,xOffsetY)
 			toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
 			if uploadSuccess:
 				toShow = overlay(toShow,success,successOffsetX,successOffsetY)
-
-			
 		cv2.imshow('image',toShow)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break

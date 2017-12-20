@@ -21,9 +21,16 @@ def get_mouse(event,x,y,flags,param):
 	global captured
 	global rSwipe
 	global lSwipe
+	global mouseClick
+	global startX
+	global startY
+	global ratio
+	global reset
+
 	if event == cv2.EVENT_LBUTTONDOWN:
 		mouseX,mouseY = x,y
 		if not captured:
+			"""
 			if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
 				if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
 					#i+=1
@@ -31,10 +38,15 @@ def get_mouse(event,x,y,flags,param):
 				elif mouseX >= arrowOffsetXL and mouseX <= arrowOffsetXL+left.shape[1]:
 					lSwipe = True
 					#i-=1
-			elif mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0]:
-				if mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
+			"""
+			if mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0] and mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
 					captured = True
+			else:
+				mouseClick = True
+				startX = x
+				startY = y
 		elif captured:
+			ratio = 0
 			if mouseY >= xOffsetY and mouseY <= xOffsetY+exit.shape[0]:
 				if mouseX >= xOffsetX and mouseX <= xOffsetX+exit.shape[1]:
 					captured = False
@@ -55,6 +67,14 @@ def get_mouse(event,x,y,flags,param):
 				uploadSuccess = False
 				captured = False
 
+	if event == cv2.EVENT_LBUTTONUP:
+		mouseClick = False
+		reset = True
+	if mouseClick:
+		ratio = (x-startX)/frame.shape[1]
+		
+
+		
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
 
@@ -191,8 +211,8 @@ def create_map(dirname):
 	return blockMap
 
 if __name__ == '__main__':
-	InstagramAPI = InstagramAPI(user,pwd)
-	InstagramAPI.login()
+	#InstagramAPI = InstagramAPI(user,pwd)
+	#InstagramAPI.login()
 	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
 	ret,frame = cap.read()
@@ -229,6 +249,8 @@ if __name__ == '__main__':
 	xOffsetX = 15
 	xOffsetY = 15
 
+	mouseClick = False
+
 	uploadOffsetY = frame.shape[0]-upload.shape[0]-50
 	uploadOffsetX = frame.shape[1]//2-upload.shape[1]//2
 
@@ -241,13 +263,17 @@ if __name__ == '__main__':
 	cv2.namedWindow('image',cv2.WND_PROP_FULLSCREEN)
 	cv2.setWindowProperty('image', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 	cv2.setMouseCallback('image',get_mouse)
-	i = 0
+	i = 2
 	uploadSuccess = False
 	captured = False
 	rSwipe = False
 	lSwipe = False
 	decrement = 0.08
 	counter = 1-decrement
+	startX = 0
+	startY = 0
+	ratio = 0
+	reset = False
 	while(True):
 		tick = datetime.datetime.now()	
 		if ret:
@@ -255,38 +281,39 @@ if __name__ == '__main__':
 		else:
 			frame = load_image('assets/image.jpg')
 		if not captured:
-			if rSwipe:
-				split = math.floor(frame.shape[1]*counter)
-				imA = frame[:,:split,:]
-				imB = frame[:,split:,:]
-				dstA = filters[i % len(filters)](copy.deepcopy(imA), False)
-				dstB = filters[(i+1) % len(filters)](copy.deepcopy(imB), False)
-				dst = np.concatenate((dstA,dstB),axis=1)
+	
+			if mouseClick:
+				if ratio > 0.05:
+					ratio = min(ratio,0.95)
+					split = math.floor(frame.shape[1]*ratio)
+					imA = frame[:,:split,:]
+					imB = frame[:,split:,:]
+					dstA = filters[(i-1) % len(filters)](copy.deepcopy(imA), False)
+					dstB = filters[i % len(filters)](copy.deepcopy(imB), False)
+					dst = np.concatenate((dstA,dstB),axis=1)
+				elif ratio < -0.05:
+					ratio = max(ratio,-0.95)
+					split = math.floor(frame.shape[1]*(1+ratio))
+					imA = frame[:,:split,:]
+					imB = frame[:,split:,:]
+					dstA = filters[i % len(filters)](copy.deepcopy(imA), False)
+					dstB = filters[(i+1) % len(filters)](copy.deepcopy(imB), False)
+					dst = np.concatenate((dstA,dstB),axis=1)
+				else:
+					dst = filters[i % len(filters)](copy.deepcopy(frame), False)
 				toShow = dst
-				counter -= decrement
-				if counter <= decrement:
-					counter = 1-decrement
-					rSwipe = False
-					i+=1
-			elif lSwipe:
-				split = math.floor(frame.shape[1]*(1-counter))
-				imA = frame[:,:split,:]
-				imB = frame[:,split:,:]
-				dstA = filters[(i-1) % len(filters)](copy.deepcopy(imA), False)
-				dstB = filters[i % len(filters)](copy.deepcopy(imB), False)
-				dst = np.concatenate((dstA,dstB),axis=1)
-				toShow = dst
-				counter -= decrement
-				if counter <= decrement:
-					counter = 1-decrement
-					lSwipe = False
-					i-=1
-
+			elif reset:
+				if ratio > 0.5:
+					i -= 1
+				elif ratio < -0.5:
+					i += 1
+				reset = False
+		
 			else:
 				dst,ui = filters[i % len(filters)](copy.deepcopy(frame))
-				toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
-				toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
-				toShow = overlay(toShow,capture,captureOffsetX,captureOffsetY)
+				#toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
+				#toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
+				toShow = overlay(ui,capture,captureOffsetX,captureOffsetY)
 		else:
 			toShow = overlay(copy.copy(dst),exit,xOffsetX,xOffsetY)
 			toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)

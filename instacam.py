@@ -263,7 +263,7 @@ if __name__ == '__main__':
 	cv2.namedWindow('image',cv2.WND_PROP_FULLSCREEN)
 	cv2.setWindowProperty('image', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 	cv2.setMouseCallback('image',get_mouse)
-	i = 2
+	i = 0
 	uploadSuccess = False
 	captured = False
 	rSwipe = False

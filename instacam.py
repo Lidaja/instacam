@@ -24,7 +24,8 @@ def get_mouse(event,x,y,flags,param):
 	global mouseClick
 	global startX
 	global startY
-	global ratio
+	global xRatio
+	global yRatio
 	global reset
 
 	if event == cv2.EVENT_LBUTTONDOWN:
@@ -46,7 +47,8 @@ def get_mouse(event,x,y,flags,param):
 				startX = x
 				startY = y
 		elif captured:
-			ratio = 0
+			xRatio = 0
+			yRatio = 0
 			if mouseY >= xOffsetY and mouseY <= xOffsetY+exit.shape[0]:
 				if mouseX >= xOffsetX and mouseX <= xOffsetX+exit.shape[1]:
 					captured = False
@@ -71,7 +73,8 @@ def get_mouse(event,x,y,flags,param):
 		mouseClick = False
 		reset = True
 	if mouseClick:
-		ratio = (x-startX)/frame.shape[1]
+		xRatio = (x-startX)/frame.shape[1]
+		yRatio = (y-startY)/frame.shape[0]
 		
 
 		
@@ -85,7 +88,7 @@ class BlockifyThread(Thread):
 		self.canvas = np.zeros(img.shape,dtype=np.uint8)
 		self.blockMap = blockMap
 	def run(self):
-		blockSize = 16
+		blockSize = 16+round(15*yRatio)
 		numBlocksWidth = self.img.shape[1]//blockSize
 		numBlocksHeight = self.img.shape[0]//blockSize
 		blockKeys = self.blockMap.keys()
@@ -143,7 +146,8 @@ def blockify(img,blockMap):
 	return dst	
 
 def blur(img, getUI = True):
-	kernel = np.ones((9,9),np.float32)/81
+	kSize = 9 + round(7*yRatio)
+	kernel = np.ones((kSize,kSize),np.float32)/(kSize*kSize)
 	filtered = cv2.filter2D(img,-1,kernel)
 	if getUI:
 		ui = overlay(copy.copy(filtered),blurText,textOffsetX,img.shape[0]-blurText.shape[0])
@@ -211,8 +215,8 @@ def create_map(dirname):
 	return blockMap
 
 if __name__ == '__main__':
-	#InstagramAPI = InstagramAPI(user,pwd)
-	#InstagramAPI.login()
+	InstagramAPI = InstagramAPI(user,pwd)
+	InstagramAPI.login()
 	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
 	ret,frame = cap.read()
@@ -272,7 +276,8 @@ if __name__ == '__main__':
 	counter = 1-decrement
 	startX = 0
 	startY = 0
-	ratio = 0
+	xRatio = 0
+	yRatio = 0
 	reset = False
 	while(True):
 		tick = datetime.datetime.now()	
@@ -283,17 +288,17 @@ if __name__ == '__main__':
 		if not captured:
 	
 			if mouseClick:
-				if ratio > 0.05:
-					ratio = min(ratio,0.95)
-					split = math.floor(frame.shape[1]*ratio)
+				if xRatio > 0.05:
+					xRatio = min(xRatio,0.95)
+					split = math.floor(frame.shape[1]*xRatio)
 					imA = frame[:,:split,:]
 					imB = frame[:,split:,:]
 					dstA = filters[(i-1) % len(filters)](copy.deepcopy(imA), False)
 					dstB = filters[i % len(filters)](copy.deepcopy(imB), False)
 					dst = np.concatenate((dstA,dstB),axis=1)
-				elif ratio < -0.05:
-					ratio = max(ratio,-0.95)
-					split = math.floor(frame.shape[1]*(1+ratio))
+				elif xRatio < -0.05:
+					xRatio = max(xRatio,-0.95)
+					split = math.floor(frame.shape[1]*(1+xRatio))
 					imA = frame[:,:split,:]
 					imB = frame[:,split:,:]
 					dstA = filters[i % len(filters)](copy.deepcopy(imA), False)
@@ -303,10 +308,14 @@ if __name__ == '__main__':
 					dst = filters[i % len(filters)](copy.deepcopy(frame), False)
 				toShow = dst
 			elif reset:
-				if ratio > 0.5:
+				if xRatio > 0.5:
+					xRatio = 0
+					yRatio = 0
 					i -= 1
-				elif ratio < -0.5:
+				elif xRatio < -0.5:
 					i += 1
+					xRatio = 0
+					yRatio = 0
 				reset = False
 		
 			else:

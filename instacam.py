@@ -17,29 +17,18 @@ i = 0
 def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
 	global i
-	global uploadSuccess
 	global captured
-	global rSwipe
-	global lSwipe
 	global mouseClick
 	global startX
 	global startY
 	global xRatio
 	global yRatio
 	global reset
+	global uploading
 
 	if event == cv2.EVENT_LBUTTONDOWN:
 		mouseX,mouseY = x,y
 		if not captured:
-			"""
-			if mouseY >= arrowOffsetY and mouseY <= arrowOffsetY+right.shape[0]:
-				if mouseX >= arrowOffsetXR and mouseX <= arrowOffsetXR+right.shape[1]:
-					#i+=1
-					rSwipe = True
-				elif mouseX >= arrowOffsetXL and mouseX <= arrowOffsetXL+left.shape[1]:
-					lSwipe = True
-					#i-=1
-			"""
 			if mouseY >= captureOffsetY and mouseY <= captureOffsetY + capture.shape[0] and mouseX >= captureOffsetX and mouseX <= captureOffsetX+capture.shape[1]:
 					captured = True
 			else:
@@ -49,25 +38,17 @@ def get_mouse(event,x,y,flags,param):
 		elif captured:
 			xRatio = 0
 			yRatio = 0
-			if mouseY >= xOffsetY and mouseY <= xOffsetY+exit.shape[0]:
+			if not uploading and mouseY >= xOffsetY and mouseY <= xOffsetY+exit.shape[0]:
 				if mouseX >= xOffsetX and mouseX <= xOffsetX+exit.shape[1]:
 					captured = False
 
 		
-			if not uploadSuccess and mouseY >= uploadOffsetY and mouseY <= uploadOffsetY+upload.shape[0]:
+			if not uploading and mouseY >= uploadOffsetY and mouseY <= uploadOffsetY+upload.shape[0]:
 				if mouseX >= uploadOffsetX and mouseX <= uploadOffsetX+upload.shape[1]:
-					timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
-					photo_path =os.getcwd()+'/'+timestamp+'.jpg'
-					print(cv2.imwrite(photo_path,dst))
-					caption = "Sample photo"
-					print("START UPLOAD")
-					InstagramAPI.uploadPhoto(photo_path, caption = caption)
-					print("SUCCESS")
-					uploadSuccess = True
-					os.remove(photo_path)
-			elif uploadSuccess:
-				uploadSuccess = False
-				captured = False
+					uploading = True
+					uThread = UploadThread(dst)
+					uThread.daemon = True
+					uThread.start()
 
 	if event == cv2.EVENT_LBUTTONUP:
 		mouseClick = False
@@ -80,6 +61,26 @@ def get_mouse(event,x,y,flags,param):
 		
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
+
+class UploadThread(Thread):
+	def __init__(self,img):
+		Thread.__init__(self)
+		self.img = img
+	def run(self):
+		global uploading
+		global captured
+		
+		timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%Hh%Mm%Ss')
+		photo_path =os.getcwd()+'/'+timestamp+'.jpg'
+		print(cv2.imwrite(photo_path,self.img))
+		caption = "Sample photo"
+		print("START UPLOAD")
+		InstagramAPI.uploadPhoto(photo_path, caption = caption)
+		print("SUCCESS")
+		uploadSuccess = True
+		os.remove(photo_path)
+		uploading = False
+		captured = False
 
 class BlockifyThread(Thread):
 	def __init__(self, img,blockMap):
@@ -193,8 +194,10 @@ def detection(img, getUI = True):
 	imgcopy = copy.deepcopy(img)
 	gray, ui = grayscale(imgcopy)
 	faces = faceCascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+	overlayIndex = round(yRatio*10)
+	emoji = emojiOverlays[overlayIndex % len(emojiOverlays)]
 	for (x, y, w, h) in faces:
-		imgcopy = overlay(imgcopy, cv2.resize(smile,(w,h)), x, y)
+		imgcopy = overlay(imgcopy, cv2.resize(emoji,(w,h)), x, y)
 	if getUI:
 		ui = overlay(copy.copy(imgcopy),detectionText,textOffsetX,img.shape[0]-detectionText.shape[0])
 		return imgcopy, ui
@@ -226,9 +229,11 @@ if __name__ == '__main__':
 	#Load UI elements
 	right = cv2.resize(load_image('assets/ui/right.png'),(0,0),fx=0.7,fy=0.8)
 	left = cv2.resize(load_image('assets/ui/left.png'),(0,0),fx=0.7,fy=0.8)
-	upload = cv2.resize(load_image('assets/ui/upload.png'),(0,0),fx=0.7,fy=0.8)
+	#upload = cv2.resize(load_image('assets/ui/upload.png'),(0,0),fx=0.7,fy=0.8)
+	upload = cv2.resize(load_image('assets/ui/ig.png'),(0,0),fx=0.3,fy=0.3)
 	success = cv2.resize(load_image('assets/ui/success.png'),(0,0),fx=0.7,fy=0.8)
 	capture = cv2.resize(load_image('assets/ui/capture.png'),(0,0),fx=0.5,fy=0.5)
+	load = load_image('assets/ui/load.png')
 	exit = load_image('assets/ui/x.png')
 	
 	textOffsetX = 10
@@ -240,13 +245,18 @@ if __name__ == '__main__':
 	colorfyText = load_image('assets/ui/colorfy.png')
 	emojifyText = load_image('assets/ui/emojify.png')
 
-	smile = load_image('assets/smile.png')
+	smile = load_image('assets/faces/smile.png')
+	wink = load_image('assets/faces/wink.png')
+	heart = load_image('assets/faces/heart.png')
+	fish = load_image('assets/faces/fish.png')
 	
+	emojiOverlays = [smile,wink,heart,fish]
+
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
 
 
-	arrowOffsetXR = frame.shape[1]-right.shape[1]-100#//2+200
+	arrowOffsetXR = frame.shape[1]-right.shape[1]-100
 	arrowOffsetXL = 100
 	arrowOffsetY = 50
 
@@ -258,6 +268,9 @@ if __name__ == '__main__':
 	uploadOffsetY = frame.shape[0]-upload.shape[0]-50
 	uploadOffsetX = frame.shape[1]//2-upload.shape[1]//2
 
+	loadOffsetX = frame.shape[0]//2-load.shape[0]//2
+	loadOffsetY = frame.shape[1]//2-load.shape[1]//2
+
 	captureOffsetY = frame.shape[0]-capture.shape[0]-25
 	captureOffsetX = frame.shape[1]//2-capture.shape[1]//2
 
@@ -268,16 +281,13 @@ if __name__ == '__main__':
 	cv2.setWindowProperty('image', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 	cv2.setMouseCallback('image',get_mouse)
 	i = 0
-	uploadSuccess = False
 	captured = False
-	rSwipe = False
-	lSwipe = False
-	decrement = 0.08
-	counter = 1-decrement
+	uploading = False
 	startX = 0
 	startY = 0
 	xRatio = 0
 	yRatio = 0
+	loadRotation = 0
 	reset = False
 	while(True):
 		tick = datetime.datetime.now()	
@@ -320,14 +330,16 @@ if __name__ == '__main__':
 		
 			else:
 				dst,ui = filters[i % len(filters)](copy.deepcopy(frame))
-				#toShow = overlay(ui,right,arrowOffsetXR,arrowOffsetY)
-				#toShow = overlay(toShow,left,arrowOffsetXL,arrowOffsetY)
 				toShow = overlay(ui,capture,captureOffsetX,captureOffsetY)
 		else:
 			toShow = overlay(copy.copy(dst),exit,xOffsetX,xOffsetY)
 			toShow = overlay(toShow,upload,uploadOffsetX,uploadOffsetY)
-			if uploadSuccess:
-				toShow = overlay(toShow,success,successOffsetX,successOffsetY)
+			if uploading:
+				loadCols = load.shape[0]
+				loadRows = load.shape[1]
+				M = cv2.getRotationMatrix2D((loadCols/2,loadRows/2),loadRotation,1)
+				toShow = overlay(toShow,cv2.warpAffine(load,M,(loadCols,loadRows)),loadOffsetX,loadOffsetY)
+				loadRotation -= 4
 		cv2.imshow('image',toShow)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break

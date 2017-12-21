@@ -89,11 +89,11 @@ class BlockifyThread(Thread):
 		self.canvas = np.zeros(img.shape,dtype=np.uint8)
 		self.blockMap = blockMap
 	def run(self):
-		blockSize = 16+round(15*yRatio)
+		blockSize = 20+round(15*yRatio)
 		numBlocksWidth = self.img.shape[1]//blockSize
 		numBlocksHeight = self.img.shape[0]//blockSize
 		blockKeys = self.blockMap.keys()
-		mapMat = np.array(list(blockKeys))	
+		mapMat = np.array(list(blockKeys))
 		for i in range(numBlocksHeight):
 			for j in range(numBlocksWidth):
 				block = self.img[i*blockSize:(i+1)*blockSize,j*blockSize:(j+1)*blockSize,:]
@@ -156,7 +156,7 @@ def blur(img, getUI = True):
 	return filtered
 
 def edge(img, getUI = True):
-	filtered = to3D(cv2.Canny(grayscale(img)[0],100,200))
+	filtered = to3D(cv2.Canny(grayscale(img)[0],100+(yRatio*100),200))
 	if getUI:
 		ui = overlay(copy.copy(filtered),edgeText,textOffsetX,img.shape[0]-edgeText.shape[0])
 		return filtered, ui

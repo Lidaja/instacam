@@ -9,14 +9,10 @@ import copy
 from threading import Thread
 import math
 import random
-user,pwd = 'ljinstacam', 'instacampassword'
-
-faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
-i = 0
+from numba import jit
 
 def get_mouse(event,x,y,flags,param):
 	global mouseX,mouseY
-	global i
 	global captured
 	global mouseClick
 	global startX
@@ -56,9 +52,7 @@ def get_mouse(event,x,y,flags,param):
 	if mouseClick:
 		xRatio = (x-startX)/frame.shape[1]
 		yRatio = (y-startY)/frame.shape[0]
-		
-
-		
+	
 def load_image(filename):
 	return cv2.imread(os.getcwd()+'/'+filename,cv2.IMREAD_UNCHANGED)
 
@@ -89,7 +83,7 @@ class BlockifyThread(Thread):
 		self.canvas = np.zeros(img.shape,dtype=np.uint8)
 		self.blockMap = blockMap
 	def run(self):
-		blockSize = 20+round(15*yRatio)
+		blockSize = 30+round(15*yRatio)
 		numBlocksWidth = self.img.shape[1]//blockSize
 		numBlocksHeight = self.img.shape[0]//blockSize
 		blockKeys = self.blockMap.keys()
@@ -218,10 +212,13 @@ def create_map(dirname):
 	return blockMap
 
 if __name__ == '__main__':
+	user,pwd = 'ljinstacam', 'instacampassword'
 	InstagramAPI = InstagramAPI(user,pwd)
 	InstagramAPI.login()
 	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
+	faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
+	i = 0
 	ret,frame = cap.read()
 	if not ret:
 		frame = load_image('assets/image.jpg')
@@ -229,7 +226,6 @@ if __name__ == '__main__':
 	#Load UI elements
 	right = cv2.resize(load_image('assets/ui/right.png'),(0,0),fx=0.7,fy=0.8)
 	left = cv2.resize(load_image('assets/ui/left.png'),(0,0),fx=0.7,fy=0.8)
-	#upload = cv2.resize(load_image('assets/ui/upload.png'),(0,0),fx=0.7,fy=0.8)
 	upload = cv2.resize(load_image('assets/ui/ig.png'),(0,0),fx=0.3,fy=0.3)
 	success = cv2.resize(load_image('assets/ui/success.png'),(0,0),fx=0.7,fy=0.8)
 	capture = cv2.resize(load_image('assets/ui/capture.png'),(0,0),fx=0.5,fy=0.5)
@@ -254,11 +250,6 @@ if __name__ == '__main__':
 
 	emojiMap = create_map('Emojis')
 	colorMap = create_map('Colors')
-
-
-	arrowOffsetXR = frame.shape[1]-right.shape[1]-100
-	arrowOffsetXL = 100
-	arrowOffsetY = 50
 
 	xOffsetX = 15
 	xOffsetY = 15
@@ -290,13 +281,11 @@ if __name__ == '__main__':
 	loadRotation = 0
 	reset = False
 	while(True):
-		tick = datetime.datetime.now()	
 		if ret:
 			ret,frame = cap.read()
 		else:
 			frame = load_image('assets/image.jpg')
-		if not captured:
-	
+		if not captured:	
 			if mouseClick:
 				if xRatio > 0.05:
 					xRatio = min(xRatio,0.95)
@@ -343,7 +332,4 @@ if __name__ == '__main__':
 		cv2.imshow('image',toShow)
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
-		tock = datetime.datetime.now()
-		diff = tock-tick
-		#print(diff.total_seconds())
 	cv2.destroyAllWindows()

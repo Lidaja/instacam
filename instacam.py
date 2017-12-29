@@ -9,6 +9,7 @@ import copy
 from threading import Thread
 import math
 import random
+from scipy.signal import convolve2d as conv
 user,pwd = 'ljinstacam', 'instacampassword'
 
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
@@ -89,7 +90,7 @@ class BlockifyThread(Thread):
 		self.canvas = np.zeros(img.shape,dtype=np.uint8)
 		self.blockMap = blockMap
 	def run(self):
-		blockSize = 20+round(15*yRatio)
+		blockSize = 30+round(20*yRatio)
 		numBlocksWidth = self.img.shape[1]//blockSize
 		numBlocksHeight = self.img.shape[0]//blockSize
 		blockKeys = self.blockMap.keys()
@@ -131,6 +132,19 @@ def emojify(img, getUI = True):
 		return filtered, ui
 	return filtered
 
+def pixellate(img, getUI = True):
+	numBlocks = 9+round(8*yRatio)
+	blockWidth = img.shape[1]//numBlocks
+	blockHeight = img.shape[0]//numBlocks
+	for m in range(numBlocks):
+		for n in range(numBlocks):
+			img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,0] = np.mean(img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,0]) * np.ones((blockHeight,blockWidth),dtype=np.uint8)
+			img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,1] = np.mean(img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,1]) * np.ones((blockHeight,blockWidth),dtype=np.uint8)
+			img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,2] = np.mean(img[m*blockHeight:(m+1)*blockHeight,n*blockWidth:(n+1)*blockWidth,2]) * np.ones((blockHeight,blockWidth),dtype=np.uint8)
+	if getUI:
+		return img,img
+	return img
+
 def blockify(img,blockMap):
 	Threads = []
 	dst = np.zeros((0,img.shape[1],3),dtype=np.uint8)
@@ -162,6 +176,20 @@ def edge(img, getUI = True):
 		return filtered, ui
 	return filtered
 
+def shift(img,getUI = True):
+	flip = True
+	offset = max(1,1+round(200*yRatio))
+	for n in range(img.shape[0]):
+		if flip:
+			img[n,offset:,:] = img[n,0:-offset,:]
+			flip = not flip
+		else:	
+			img[n,0:-offset,:] = img[n,offset:,:]
+			flip = not flip
+	if getUI:
+		return img,img
+	return img
+
 def normal(img, getUI = True):
 	if getUI:
 		return img, copy.copy(img)
@@ -172,6 +200,25 @@ def grayscale(img, getUI = True):
 	if getUI:
 		ui = overlay(copy.copy(filtered),grayscaleText,textOffsetX,img.shape[0]-grayscaleText.shape[0])
 		return filtered,ui
+	return filtered
+
+def fade(img, getUI = True):
+	kSize = 9
+	kernel = np.ones((kSize,kSize),np.float32)/(kSize*kSize)
+	blurredImg = cv2.filter2D(img,-1,kernel)
+	blurredLast = cv2.filter2D(lastFrame,-1,kernel)
+	canvas = np.zeros(img.shape,dtype=np.uint8)
+	diffImg = np.sum(blurredImg-blurredLast[:,:img.shape[1],:],axis=2)
+	thresh = (200+(yRatio*55))*3
+	canvas[np.where(diffImg > thresh)] = img[np.where(diffImg > thresh)]
+	if getUI:
+		return canvas,canvas
+	return canvas
+
+def seizure(img, getUI = True):
+	filtered = img-lastFrame[:,:img.shape[1],:]
+	if getUI:
+		return filtered,filtered
 	return filtered
 
 def to3D(img):
@@ -218,9 +265,9 @@ def create_map(dirname):
 	return blockMap
 
 if __name__ == '__main__':
-	InstagramAPI = InstagramAPI(user,pwd)
-	InstagramAPI.login()
-	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
+	#InstagramAPI = InstagramAPI(user,pwd)
+	#InstagramAPI.login()
+	filters = [normal,blur, grayscale, shift,detection,edge,fade,seizure,pixellate,colorfy,emojify]
 	cap = cv2.VideoCapture(0)
 	ret,frame = cap.read()
 	if not ret:
@@ -236,6 +283,7 @@ if __name__ == '__main__':
 	load = load_image('assets/ui/load.png')
 	exit = load_image('assets/ui/x.png')
 	
+	lastFrame = np.zeros(frame.shape,dtype=np.uint8)
 	textOffsetX = 10
 	
 	blurText = load_image('assets/ui/blur.png')
@@ -293,6 +341,7 @@ if __name__ == '__main__':
 		tick = datetime.datetime.now()	
 		if ret:
 			ret,frame = cap.read()
+			frame = np.flip(frame,1)
 		else:
 			frame = load_image('assets/image.jpg')
 		if not captured:
@@ -341,6 +390,7 @@ if __name__ == '__main__':
 				toShow = overlay(toShow,cv2.warpAffine(load,M,(loadCols,loadRows)),loadOffsetX,loadOffsetY)
 				loadRotation -= 4
 		cv2.imshow('image',toShow)
+		lastFrame = frame
 		if cv2.waitKey(1) & 0xFF == ord('q'):
 			break
 		tock = datetime.datetime.now()

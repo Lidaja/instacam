@@ -9,6 +9,8 @@ import copy
 from threading import Thread
 import math
 import random
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 user,pwd = 'ljinstacam', 'instacampassword'
 
 faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
@@ -261,22 +263,16 @@ def create_map(dirname):
 	return blockMap
 
 if __name__ == '__main__':
-<<<<<<< HEAD
+	filters = [normal,blur, grayscale, shift,detection,edge,fade,seizure,pixellate,colorfy,emojify]
 	#InstagramAPI = InstagramAPI(user,pwd)
 	#InstagramAPI.login()
-	filters = [normal,blur, grayscale, shift,detection,edge,fade,seizure,pixellate,colorfy,emojify]
-=======
-	user,pwd = 'ljinstacam', 'instacampassword'
-	InstagramAPI = InstagramAPI(user,pwd)
-	InstagramAPI.login()
-	filters = [normal,blur, grayscale, detection,edge,colorfy,emojify]
->>>>>>> 7a3490f4c3f99c57221fb573b4f9ea8f19677150
-	cap = cv2.VideoCapture(0)
+	#cap = cv2.VideoCapture(0)
 	faceCascade = cv2.CascadeClassifier(os.getcwd()+'/assets/haarcascade.xml')
 	i = 0
-	ret,frame = cap.read()
-	if not ret:
-		frame = load_image('assets/image.jpg')
+	#ret,frame = cap.read()
+	#if not ret:
+	#	frame = load_image('assets/image.jpg')
+
 
 	#Load UI elements
 	right = cv2.resize(load_image('assets/ui/right.png'),(0,0),fx=0.7,fy=0.8)
